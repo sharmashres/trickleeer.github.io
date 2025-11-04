@@ -1,0 +1,1385 @@
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+        <title>TRIP TRICKLER - The App</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+        <style>
+            :root {
+                --primary-color: #4f46e5;
+                --secondary-color: #10b981;
+            }
+            body {
+                font-family: 'Inter', sans-serif;
+                background-color: #f8fafc; /* Tailwind's gray-50 */
+            }
+            .auth-bg {
+                background-image: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2070&auto=format&fit=crop');
+                background-size: cover;
+                background-position: center;
+            }
+            .page { display: none; }
+            .page.active { display: block; }
+            @keyframes spin { to { transform: rotate(360deg); } }
+            .spinner {
+                border: 4px solid rgba(0, 0, 0, .1);
+                border-left-color: var(--primary-color);
+                border-radius: 50%;
+                width: 40px;
+                height: 40px;
+                animation: spin 1s linear infinite;
+            }
+            .modal {
+                transition: opacity 0.25s ease;
+            }
+            /* Explore Nearby Styles */
+            .place-card {
+                transition: transform 0.3s ease, box-shadow 0.3s ease;
+            }
+            .place-card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            }
+            .category-filter {
+                transition: all 0.3s ease;
+                cursor: pointer;
+            }
+            .category-filter.active {
+                background: var(--primary-color);
+                color: white;
+                border-color: var(--primary-color);
+            }
+            .rating-stars { color: #fbbf24; }
+            #review-stars i:hover, #review-stars i.active { color: #fbbf24; }
+            .safety-tag { background: #10b981; color: white; }
+            #map { height: 300px; border-radius: 12px; z-index: 10; }
+            .notification {
+                position: fixed; top: 20px; right: 20px; padding: 15px 20px;
+                border-radius: 8px; color: white; z-index: 1050;
+                transform: translateX(120%); transition: transform 0.3s ease-in-out;
+            }
+            .notification.show { transform: translateX(0); }
+            .notification.success { background: var(--secondary-color); }
+            .notification.error { background: #ef4444; }
+            .leaflet-popup-content { margin: 13px 19px; font-family: 'Inter', sans-serif; }
+            .popup-title { font-weight: bold; font-size: 16px; margin-bottom: 4px; color: #333; }
+            .popup-desc { font-size: 14px; margin-bottom: 4px; color: #666; }
+            .popup-time { font-size: 12px; color: gray; }
+            .interest-btn.active {
+                background-color: var(--primary-color);
+                color: white;
+            }
+            /* Itinerary Timeline Styles */
+            .itinerary-content h3 { font-size: 1.5rem; font-weight: 800; text-align: center; margin-bottom: 1.5rem; color: #1f2937; }
+            .itinerary-content h4 { font-size: 1.25rem; font-weight: 700; margin-top: 2rem; margin-bottom: 1.5rem; color: #374151; padding-bottom: 0.5rem; border-bottom: 2px solid #e5e7eb; }
+            .itinerary-content ul { list-style: none; padding: 0; }
+            .timeline-item { position: relative; padding: 0 0 2.5rem 2.5rem; border-left: 2px solid #d1d5db; }
+            .timeline-item:last-child { border-left: 2px solid transparent; }
+            .timeline-icon { position: absolute; left: -0.8rem; top: 0.25rem; background: white; border-radius: 9999px; width: 1.5rem; height: 1.5rem; display: flex; align-items: center; justify-content: center; border: 2px solid var(--primary-color); }
+            .timeline-icon i { color: var(--primary-color); font-size: 0.8rem; }
+            .timeline-time { font-weight: 600; color: #4b5563; margin-bottom: 0.25rem; }
+            .timeline-desc { color: #6b7280; }
+            .travel-style-tag {
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+            .travel-style-tag.selected {
+                background-color: var(--primary-color);
+                color: white;
+                border-color: var(--primary-color);
+            }
+            /* Messages Styles */
+            #chat-container {
+                height: calc(100vh - 5rem); /* Full height minus top bar */
+            }
+            .conversation-item.active {
+                background-color: #eef2ff; /* indigo-100 */
+            }
+            /* App Layout Styles */
+            .bottom-nav-item.active {
+                color: var(--primary-color);
+            }
+            .horizontal-scroll {
+                -ms-overflow-style: none; /* IE and Edge */
+                scrollbar-width: none; /* Firefox */
+            }
+            .horizontal-scroll::-webkit-scrollbar {
+                display: none; /* Chrome, Safari and Opera */
+            }
+        </style>
+    </head>
+    <body class="overscroll-none">
+
+        <!-- Notification Container -->
+        <div id="notification" class="notification"></div>
+
+        <!-- PAGE: Authentication (Login/Signup) -->
+        <main id="page-auth" class="page active">
+            <div class="min-h-screen flex items-center justify-center auth-bg p-4">
+                <div class="w-full max-w-md bg-white/90 backdrop-blur-sm rounded-xl shadow-2xl p-8">
+                    <div class="flex items-center justify-center space-x-2 mb-6">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-600"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
+                        <h1 class="text-2xl font-bold text-gray-800">TRIP TRICKLER</h1>
+                    </div>
+                    
+                    <!-- Login Form -->
+                    <div id="login-form-container">
+                        <h2 class="text-center text-3xl font-bold text-gray-800 mb-2">Welcome Back!</h2>
+                        <p class="text-center text-gray-600 mb-8">Login to plan your next adventure.</p>
+                        <form id="login-form">
+                            <div class="mb-4">
+                                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                                <input type="email" id="email" class="w-full p-3 border border-gray-300 rounded-lg" value="alex@example.com" required>
+                            </div>
+                            <div class="mb-6">
+                                <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                                <input type="password" id="password" class="w-full p-3 border border-gray-300 rounded-lg" value="password" required>
+                            </div>
+                            <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-indigo-700 transition-all text-lg">
+                                Login
+                            </button>
+                            <p class="text-center text-sm text-gray-600 mt-6">
+                                Don't have an account? <a href="#" id="show-signup-link" class="font-semibold text-indigo-600 hover:underline">Sign Up</a>
+                            </p>
+                        </form>
+                    </div>
+
+                    <!-- Signup Form -->
+                    <div id="signup-form-container" class="hidden">
+                        <h2 class="text-center text-3xl font-bold text-gray-800 mb-2">Create Account</h2>
+                        <p class="text-center text-gray-600 mb-8">Join our community of travelers.</p>
+                        <form id="signup-form">
+                            <div class="mb-4">
+                                <label for="signup-name" class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                                <input type="text" id="signup-name" class="w-full p-3 border border-gray-300 rounded-lg" placeholder="e.g., Alex Doe" required>
+                            </div>
+                            <div class="mb-4">
+                                <label for="signup-email" class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                                <input type="email" id="signup-email" class="w-full p-3 border border-gray-300 rounded-lg" placeholder="alex@example.com" required>
+                            </div>
+                            <div class="mb-4">
+                                <label for="signup-password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                                <input type="password" id="signup-password" class="w-full p-3 border border-gray-300 rounded-lg" required>
+                            </div>
+                            <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-indigo-700 transition-all text-lg">
+                                Create Account
+                            </button>
+                            <p class="text-center text-sm text-gray-600 mt-6">
+                                Already have an account? <a href="#" id="show-login-link" class="font-semibold text-indigo-600 hover:underline">Login</a>
+                            </p>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Main App Content (hidden until logged in) -->
+        <div id="main-app-content" class="hidden">
+            <div id="app-container" class="pb-20"> <!-- Padding for bottom nav -->
+                <!-- Each page is now a full screen view -->
+                
+                <!-- PAGE: Main Dashboard -->
+                <main id="page-dashboard" class="page">
+                    <div class="p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <div>
+                                <p class="text-gray-500">Welcome back,</p>
+                                <h2 id="welcome-message" class="text-2xl font-bold text-gray-800">Alex!</h2>
+                            </div>
+                            <div class="flex items-center space-x-4">
+                                <button id="dashboard-messages-btn" class="text-gray-500 hover:text-indigo-600 text-xl"><i class="fas fa-comments"></i></button>
+                                <div class="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold text-xl" id="dashboard-avatar">A</div>
+                            </div>
+                        </div>
+
+                        <!-- My Trips Carousel -->
+                        <div class="mb-8">
+                            <h3 class="text-xl font-bold text-gray-800 mb-4">My Upcoming Trips</h3>
+                            <div id="my-trips-grid" class="flex overflow-x-auto space-x-4 horizontal-scroll pb-4">
+                                <!-- Placeholder -->
+                                <div class="flex-shrink-0 w-64 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-center p-6 bg-gray-50 hover:bg-gray-100 transition-colors duration-300 cursor-pointer" onclick="document.getElementById('nav-planner').click()">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400 mb-4"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                    <h3 class="font-semibold text-gray-700">Plan a New Trip</h3>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Get Started -->
+                        <div class="mb-8">
+                            <h3 class="text-xl font-bold text-gray-800 mb-4">Get Started</h3>
+                            <div class="grid grid-cols-3 gap-4 text-center">
+                                <div id="dashboard-plan-card" class="cursor-pointer bg-white p-4 rounded-xl shadow-md">
+                                    <div class="bg-indigo-100 rounded-lg p-3 inline-block mb-2"><i class="fas fa-magic-wand-sparkles text-indigo-600 text-xl"></i></div>
+                                    <p class="text-sm font-medium text-gray-700">Plan a Trip</p>
+                                </div>
+                                <div id="dashboard-buddy-card" class="cursor-pointer bg-white p-4 rounded-xl shadow-md">
+                                    <div class="bg-teal-100 rounded-lg p-3 inline-block mb-2"><i class="fas fa-users text-teal-600 text-xl"></i></div>
+                                    <p class="text-sm font-medium text-gray-700">Find a Buddy</p>
+                                </div>
+                                <div id="dashboard-explore-card" class="cursor-pointer bg-white p-4 rounded-xl shadow-md">
+                                    <div class="bg-amber-100 rounded-lg p-3 inline-block mb-2"><i class="fas fa-map-marked-alt text-amber-600 text-xl"></i></div>
+                                    <p class="text-sm font-medium text-gray-700">Explore</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Join an Adventure -->
+                        <div class="mb-8">
+                            <h3 class="text-xl font-bold text-gray-800 mb-4">Join an Adventure</h3>
+                            <div class="space-y-4">
+                                <div class="bg-white p-4 rounded-xl shadow-md flex items-center space-x-4">
+                                    <img src="https://images.unsplash.com/photo-1542051841857-5f90071e7989?q=80&w=400&auto=format&fit=crop" class="w-20 h-20 rounded-lg object-cover">
+                                    <div>
+                                        <h4 class="font-bold text-gray-800">Japan Discovery</h4>
+                                        <p class="text-sm text-gray-500">Dec 1 - Dec 15</p>
+                                        <div class="flex items-center text-sm text-teal-600 mt-1"><i class="fas fa-users mr-2"></i>2/4 spots filled</div>
+                                    </div>
+                                    <button class="ml-auto bg-teal-500 text-white font-semibold px-4 py-2 rounded-lg text-sm">Join</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Recommended Destinations -->
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800 mb-4">Recommended for You</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="relative rounded-lg overflow-hidden h-40">
+                                    <img src="https://images.unsplash.com/photo-1522093012147-92a83241c78e?q=80&w=400&auto=format&fit=crop" class="w-full h-full object-cover">
+                                    <div class="absolute inset-0 bg-black/40"></div>
+                                    <p class="absolute bottom-2 left-2 text-white font-bold">Rome</p>
+                                </div>
+                                <div class="relative rounded-lg overflow-hidden h-40">
+                                    <img src="https://images.unsplash.com/photo-1537996194471-e657df975ab4?q=80&w=400&auto=format&fit=crop" class="w-full h-full object-cover">
+                                    <div class="absolute inset-0 bg-black/40"></div>
+                                    <p class="absolute bottom-2 left-2 text-white font-bold">Bali</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+                
+                <!-- PAGE: Plan a Trip with AI -->
+                <main id="page-planner" class="page">
+                    <div class="p-6">
+                        <h2 class="text-3xl font-bold text-gray-800 text-center mb-2">AI Itinerary Planner</h2>
+                        <p class="text-center text-gray-600 max-w-2xl mx-auto mb-8">Tell us your plans and we'll do the rest.</p>
+                        <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-lg">
+                            <form id="planner-form" class="p-6">
+                                <div class="space-y-4">
+                                    <div><label for="destination" class="block text-sm font-medium text-gray-700 mb-1">Destination</label><input type="text" id="destination" class="w-full p-3 border border-gray-300 rounded-lg" placeholder="e.g., Kyoto, Japan" required></div>
+                                    <div><label for="duration" class="block text-sm font-medium text-gray-700 mb-1">Duration (days)</label><input type="number" id="duration" class="w-full p-3 border border-gray-300 rounded-lg" placeholder="e.g., 5" required></div>
+                                </div>
+                                <div class="my-6"><label class="block text-sm font-medium text-gray-700 mb-1">Budget</label><div class="flex justify-between text-sm text-gray-500"><span>Budget</span><span>Moderate</span><span>Luxury</span></div><input type="range" id="budget" min="1" max="3" value="2" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"></div>
+                                <div class="my-6"><label class="block text-sm font-medium text-gray-700 mb-2">Interests</label><div id="interests-container" class="flex flex-wrap gap-3"><button type="button" class="interest-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-full text-sm" data-interest="History & Culture">History</button><button type="button" class="interest-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-full text-sm" data-interest="Food & Drink">Food</button><button type="button" class="interest-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-full text-sm" data-interest="Adventure & Outdoors">Outdoors</button><button type="button" class="interest-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-full text-sm" data-interest="Relaxation">Relaxation</button><button type="button" class="interest-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-full text-sm" data-interest="Nightlife">Nightlife</button></div></div>
+                                <button type="submit" id="generate-itinerary-btn" class="w-full bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-indigo-700 transition-all text-lg">Generate My Itinerary</button>
+                            </form>
+                            <div id="planner-loading" class="hidden text-center p-8"><div class="spinner mx-auto mb-4"></div><p class="text-gray-600 font-medium">Crafting your perfect trip...</p></div>
+                            <div id="planner-results" class="hidden">
+                                <div id="itinerary-header" class="relative h-48 bg-gray-500 bg-cover bg-center rounded-t-xl">
+                                    <div class="absolute inset-0 bg-black/40"></div>
+                                </div>
+                                <div id="itinerary-content" class="p-6 itinerary-content"></div>
+                                <div class="p-6 border-t flex justify-center gap-4">
+                                    <button id="save-itinerary-btn" class="bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-indigo-700">Save Itinerary</button>
+                                    <button id="regenerate-itinerary-btn" class="bg-gray-200 text-gray-800 font-bold py-3 px-6 rounded-lg hover:bg-gray-300">Start Over</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+                
+                <!-- PAGE: Find a Travel Buddy -->
+                <main id="page-buddies" class="page">
+                    <div class="p-6">
+                        <h2 class="text-3xl font-bold text-gray-800 text-center mb-2">Find a Buddy</h2>
+                        <p class="text-center text-gray-600 max-w-2xl mx-auto mb-8">Connect with other travelers.</p>
+                        <div class="sticky top-0 bg-gray-50 py-4 z-10">
+                            <div class="flex bg-white p-2 rounded-xl shadow-md gap-2">
+                            <input type="text" id="buddy-dest" placeholder="Search by destination..." class="w-full p-2 bg-transparent focus:outline-none">
+                            <select id="buddy-interest" class="p-2 border-l border-gray-200 bg-transparent focus:outline-none">
+                                <option value="any">Any Interest</option><option value="foodie">Foodie</option><option value="art">Art Lover</option><option value="adventure">Adventure</option><option value="beach">Beach</option>
+                            </select>
+                            </div>
+                        </div>
+                        <div id="buddies-grid" class="mt-6 space-y-4">
+                        <!-- Buddy cards go here -->
+                        </div>
+                    </div>
+                </main>
+
+                <!-- PAGE: Explore Nearby -->
+                <main id="page-explore" class="page">
+                    <div class="p-6">
+                        <h2 class="text-3xl font-bold text-gray-800 text-center mb-2">Explore Nearby</h2>
+                        <p class="text-center text-gray-600 max-w-2xl mx-auto mb-8">Discover hidden gems around you.</p>
+                        <button onclick="getLocation()" class="w-full bg-indigo-600 text-white px-8 py-3 rounded-xl font-semibold text-lg hover:bg-indigo-700 transition-colors mb-6">
+                            <i class="fas fa-location-arrow mr-2"></i>Find Places Near Me
+                        </button>
+                        <div id="map" class="w-full mb-6"></div>
+                        <div class="flex flex-nowrap overflow-x-auto gap-3 pb-4 mb-4">
+                            <button class="category-filter active flex-shrink-0 px-4 py-2 rounded-full border" data-category="all"><i class="fas fa-star mr-2"></i>All</button>
+                            <button class="category-filter flex-shrink-0 px-4 py-2 rounded-full border" data-category="cafe"><i class="fas fa-coffee mr-2"></i>Cafés</button>
+                            <button class="category-filter flex-shrink-0 px-4 py-2 rounded-full border" data-category="historical"><i class="fas fa-landmark mr-2"></i>Historical</button>
+                            <button class="category-filter flex-shrink-0 px-4 py-2 rounded-full border" data-category="park"><i class="fas fa-tree mr-2"></i>Parks</button>
+                            <button class="category-filter flex-shrink-0 px-4 py-2 rounded-full border" data-category="nightlife"><i class="fas fa-moon mr-2"></i>Nightlife</button>
+                        </div>
+                        <div id="places-grid" class="space-y-4"></div>
+                    </div>
+                </main>
+                
+                <!-- PAGE: Messages -->
+                <main id="page-messages" class="page">
+                    <header class="p-4 bg-white border-b sticky top-0 z-20">
+                        <h2 class="text-xl font-bold text-gray-800 text-center">Messages</h2>
+                    </header>
+                    <div id="chat-container" class="bg-white flex">
+                        <div id="conversations-list" class="w-1/3 border-r border-gray-200 overflow-y-auto md:w-full"></div>
+                        <div id="chat-window" class="w-2/3 flex-col hidden md:flex"></div>
+                    </div>
+                </main>
+
+                <!-- PAGE: Profile -->
+                <main id="page-profile" class="page bg-gray-50">
+                    <div class="p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-3xl font-bold text-gray-800">My Profile</h2>
+                            <button id="logout-link" class="text-red-500 font-semibold">Logout</button>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl shadow-lg text-center">
+                            <div class="relative w-24 h-24 mx-auto mb-4">
+                            <img id="profile-picture" src="https://placehold.co/160x160/667eea/ffffff?text=A" alt="Alex Doe" class="w-24 h-24 rounded-full border-4 border-white shadow-md">
+                            <label for="profile-pic-upload" class="absolute bottom-0 right-0 bg-indigo-600 w-8 h-8 rounded-full flex items-center justify-center text-white cursor-pointer"><i class="fas fa-camera"></i></label>
+                            <input type="file" id="profile-pic-upload" class="hidden" accept="image/*">
+                            </div>
+                            <h2 id="profile-name" class="text-2xl font-bold text-gray-800">Alex Doe</h2>
+                            <p class="text-gray-500 mb-4">Joined in 2025</p>
+                            <p id="profile-bio-text" class="text-gray-600 leading-relaxed mb-4">Travel enthusiast and foodie...</p>
+                            <div id="profile-travel-styles" class="flex flex-wrap gap-2 justify-center mb-6"></div>
+                            <button id="edit-profile-btn" class="w-full bg-indigo-100 text-indigo-700 font-semibold px-5 py-3 rounded-lg hover:bg-indigo-200 transition-colors">Edit Profile</button>
+                        </div>
+                        
+                        <div class="mt-8 bg-white rounded-2xl shadow-lg overflow-hidden">
+                            <ul class="divide-y divide-gray-200">
+                                <li><a href="#" id="about-us-link" class="flex items-center p-4 hover:bg-gray-50"><i class="fas fa-info-circle w-6 text-center text-gray-500 mr-4"></i><span>About Us</span><i class="fas fa-chevron-right ml-auto text-gray-400"></i></a></li>
+                                <li><a href="#" id="contact-support-link" class="flex items-center p-4 hover:bg-gray-50"><i class="fas fa-envelope w-6 text-center text-gray-500 mr-4"></i><span>Contact & Support</span><i class="fas fa-chevron-right ml-auto text-gray-400"></i></a></li>
+                                <li><a href="#" id="help-center-link" class="flex items-center p-4 hover:bg-gray-50"><i class="fas fa-question-circle w-6 text-center text-gray-500 mr-4"></i><span>Help Center</span><i class="fas fa-chevron-right ml-auto text-gray-400"></i></a></li>
+                            </ul>
+                        </div>
+
+                        <div id="reviews-section" class="mt-8">
+                            <h3 class="text-xl font-bold text-gray-800 mb-4">My Reviews</h3>
+                            <div id="reviews-list" class="space-y-4">
+                                <!-- Reviews will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+
+            <!-- Bottom Navigation -->
+            <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around h-16 z-30">
+                <a href="#" id="nav-dashboard" class="bottom-nav-item flex-1 flex flex-col items-center justify-center text-gray-500 hover:text-indigo-600">
+                    <i class="fas fa-home"></i><span class="text-xs mt-1">Home</span>
+                </a>
+                <a href="#" id="nav-explore" class="bottom-nav-item flex-1 flex flex-col items-center justify-center text-gray-500 hover:text-indigo-600">
+                    <i class="fas fa-map-marked-alt"></i><span class="text-xs mt-1">Explore</span>
+                </a>
+                <a href="#" id="nav-planner" class="bottom-nav-item flex-1 flex flex-col items-center justify-center text-gray-500 hover:text-indigo-600 -mt-4">
+                    <div class="w-16 h-16 bg-indigo-600 rounded-full text-white flex items-center justify-center shadow-lg"><i class="fas fa-plus text-2xl"></i></div>
+                </a>
+                <a href="#" id="nav-buddies" class="bottom-nav-item flex-1 flex flex-col items-center justify-center text-gray-500 hover:text-indigo-600">
+                    <i class="fas fa-users"></i><span class="text-xs mt-1">Buddies</span>
+                </a>
+                <a href="#" id="nav-profile" class="bottom-nav-item flex-1 flex flex-col items-center justify-center text-gray-500 hover:text-indigo-600">
+                    <i class="fas fa-user-circle"></i><span class="text-xs mt-1">Profile</span>
+                </a>
+            </nav>
+        </div>
+        
+        <!-- Modals -->
+        <div id="request-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50">
+            <div class="bg-white rounded-lg shadow-xl p-8 max-w-sm w-full text-center">
+                <h3 class="text-2xl font-bold mb-4">Send Request?</h3>
+                <p class="text-gray-600 mb-6">A connection request will be sent. They will be notified and can accept or decline.</p>
+                <div class="flex justify-center gap-4">
+                    <button id="cancel-request-btn" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancel</button>
+                    <button id="confirm-request-btn" class="px-6 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600">Confirm</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="edit-profile-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50">
+            <div class="bg-white rounded-lg shadow-xl p-8 max-w-lg w-full">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold">Edit Profile</h3>
+                    <button id="close-profile-modal-btn" class="text-gray-400 hover:text-gray-600 text-3xl">&times;</button>
+                </div>
+                <form id="profile-edit-form">
+                    <div class="mb-4">
+                        <label for="modal-profile-name" class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                        <input type="text" id="modal-profile-name" class="w-full p-2 border border-gray-300 rounded-lg">
+                    </div>
+                    <div class="mb-4">
+                        <label for="modal-profile-bio" class="block text-sm font-medium text-gray-700 mb-1">About Me</label>
+                        <textarea id="modal-profile-bio" rows="4" class="w-full p-2 border border-gray-300 rounded-lg"></textarea>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">My Travel Style</label>
+                        <div id="modal-travel-styles" class="flex flex-wrap gap-3">
+                            <!-- Travel style tags will be populated by JS -->
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-4">
+                        <button type="button" id="cancel-profile-edit-btn" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancel</button>
+                        <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="review-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50">
+            <div class="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
+                <h3 class="text-2xl font-bold mb-4 text-center">Review Your Trip</h3>
+                <p class="text-center text-gray-600 mb-6">How was your trip to <span id="review-destination" class="font-semibold"></span>?</p>
+                <form id="review-form">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Your Rating</label>
+                        <div id="review-stars" class="flex justify-center text-3xl text-gray-300 cursor-pointer">
+                            <i class="fas fa-star" data-rating="1"></i>
+                            <i class="fas fa-star" data-rating="2"></i>
+                            <i class="fas fa-star" data-rating="3"></i>
+                            <i class="fas fa-star" data-rating="4"></i>
+                            <i class="fas fa-star" data-rating="5"></i>
+                        </div>
+                        <input type="hidden" id="review-rating-value" required>
+                    </div>
+                    <div class="mb-6">
+                        <label for="review-text" class="block text-sm font-medium text-gray-700 mb-1">Your Review</label>
+                        <textarea id="review-text" rows="4" class="w-full p-2 border border-gray-300 rounded-lg" placeholder="Share your experience..." required></textarea>
+                    </div>
+                    <div class="flex justify-end gap-4">
+                        <button type="button" id="cancel-review-btn" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancel</button>
+                        <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Submit Review</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Info Modals -->
+        <div id="about-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50">
+            <div class="bg-white rounded-lg shadow-xl p-8 max-w-lg w-full">
+                <div class="flex justify-between items-center mb-4"><h3 class="text-2xl font-bold">About Trip Trickler</h3><button class="close-info-modal-btn text-gray-400 hover:text-gray-600 text-3xl">&times;</button></div>
+                <p class="text-gray-600 mb-4">Trip Trickler was born from a simple idea: travel is better when it's simple, social, and smart. We connect travelers with companions and provide AI-generated itineraries to make every journey unforgettable.</p>
+                <p class="text-gray-600">Our mission is to take the stress out of planning and help you discover the world's hidden gems with the right people by your side.</p>
+            </div>
+        </div>
+        <div id="contact-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50">
+            <div class="bg-white rounded-lg shadow-xl p-8 max-w-lg w-full">
+                <div class="flex justify-between items-center mb-6"><h3 class="text-2xl font-bold">Contact & Support</h3><button class="close-info-modal-btn text-gray-400 hover:text-gray-600 text-3xl">&times;</button></div>
+                <div class="space-y-4">
+                    <p><i class="fas fa-envelope mr-3 text-indigo-600"></i> support@triptrickler.com</p>
+                    <p><i class="fas fa-phone mr-3 text-indigo-600"></i> +1 (555) 123-4567</p>
+                    <div class="flex space-x-4"><i class="fab fa-twitter text-indigo-600 text-xl"></i><i class="fab fa-instagram text-indigo-600 text-xl"></i><i class="fab fa-facebook text-indigo-600 text-xl"></i></div>
+                </div>
+            </div>
+        </div>
+        <div id="help-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50">
+            <div class="bg-white rounded-lg shadow-xl p-8 max-w-lg w-full">
+                <div class="flex justify-between items-center mb-6"><h3 class="text-2xl font-bold">Help Center</h3><button class="close-info-modal-btn text-gray-400 hover:text-gray-600 text-3xl">&times;</button></div>
+                <div class="space-y-4">
+                    <div><h4 class="font-semibold">How does the AI Planner work?</h4><p class="text-gray-600 text-sm">Just enter your destination, duration, and interests, and our AI will create a custom day-by-day plan for you!</p></div>
+                    <div><h4 class="font-semibold">Is finding a travel buddy safe?</h4><p class="text-gray-600 text-sm">We encourage users to chat and get to know each other before traveling. Always prioritize safety and meet in public places.</p></div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="view-trip-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50">
+            <div class="bg-white rounded-lg shadow-xl max-w-lg w-full h-[90vh] flex flex-col">
+                <div id="view-trip-header" class="relative h-48 bg-gray-500 bg-cover bg-center flex-shrink-0 rounded-t-lg">
+                    <div class="absolute inset-0 bg-black/40"></div>
+                    <h3 id="view-trip-title" class="absolute bottom-4 left-4 text-white text-3xl font-bold"></h3>
+                    <button id="close-view-trip-btn" class="absolute top-4 right-4 text-white text-3xl">&times;</button>
+                </div>
+                <div class="p-6 overflow-y-auto">
+                    <div class="itinerary-content" id="view-trip-itinerary"></div>
+                    <!-- Budget Tracker -->
+                    <div class="mt-8">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Budget Tracker</h3>
+                        <div class="bg-gray-100 p-4 rounded-lg">
+                            <div class="flex justify-between font-semibold mb-2">
+                                <span>Spent: <span id="budget-spent">₹0</span></span>
+                                <span>Budget: <span id="budget-total">₹5000</span></span>
+                            </div>
+                            <div class="w-full bg-gray-300 rounded-full h-2.5">
+                                <div id="budget-progress" class="bg-green-500 h-2.5 rounded-full" style="width: 0%"></div>
+                            </div>
+                            <form id="expense-form" class="mt-4 flex gap-2">
+                                <input type="text" id="expense-desc" placeholder="Expense description" class="w-2/3 p-2 border rounded-lg" required>
+                                <input type="number" id="expense-amount" placeholder="Amount" class="w-1/3 p-2 border rounded-lg" required>
+                                <button type="submit" class="bg-indigo-500 text-white px-3 rounded-lg"><i class="fas fa-plus"></i></button>
+                            </form>
+                            <ul id="expense-list" class="mt-4 space-y-2"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+        <script>
+            // --- START OF EXPLORE NEARBY SCRIPT ---
+            const places = [
+                { id: 1, name: "Lodhi Garden (Hidden Corners)", category: "park", rating: 4.8, reviews: 124, distance: "0.8km", image: "https://placehold.co/600x400/a7f3d0/1e40af?text=Park", alt: "Quiet greenery with ancient monuments", description: "Quiet greenery, perfect for a morning walk or evening hangout.", hours: "Open 6 AM - 8 PM", safety: ["Solo Friendly", "Family Friendly"], coordinates: [28.5933, 77.2197] },
+                { id: 2, name: "Majnu ka Tilla (Tibetan Colony)", category: "cafe", rating: 4.6, reviews: 89, distance: "1.2km", image: "https://placehold.co/600x400/fef08a/854d0e?text=Cafe", alt: "Tibetan cultural enclave with authentic food stalls", description: "Lesser-known food paradise with Tibetan cafes & peaceful vibes.", hours: "Open till late night", safety: ["Group Friendly", "Foodie Spot"], coordinates: [28.7156, 77.2396] },
+                { id: 3, name: "Champa Gali, Saket", category: "cafe", rating: 4.9, reviews: 156, distance: "1.5km", image: "https://placehold.co/600x400/fbcfe8/86198f?text=Cafe", alt: "Hidden alleyway with artistic cafes, fairy lights, and boutique shops", description: "Hidden alley with artsy cafes, fairy lights, and indie shops.", hours: "11 AM - 11 PM", safety: ["Romantic Spot", "Instagram Worthy"], coordinates: [28.5207, 77.2046] },
+                { id: 4, name: "Ridge Road, Civil Lines", category: "park", rating: 4.4, reviews: 67, distance: "0.5km", image: "https://placehold.co/600x400/d1fae5/065f46?text=Park", alt: "Scenic road through forested area perfect for cycling", description: "A peaceful, lesser-known stretch for night walks & cycling.", hours: "24 hours", safety: ["Solo Friendly", "Well Lit"], coordinates: [28.6863, 77.2286] },
+                { id: 5, name: "Hauz Khas Village Rooftops", category: "nightlife", rating: 4.7, reviews: 92, distance: "0.3km", image: "https://placehold.co/600x400/c7d2fe/3730a3?text=Nightlife", alt: "Trendy rooftop bars with panoramic views", description: "Rooftop bars with stunning city views and great atmosphere.", hours: "5:00 PM - 2:00 AM", safety: ["Group Friendly", "Romantic Spot"], coordinates: [28.5545, 77.1947] },
+                { id: 6, name: "Sunder Nursery Heritage Park", category: "historical", rating: 4.5, reviews: 78, distance: "1.8km", image: "https://placehold.co/600x400/fed7aa/9a3412?text=History", alt: "Restored Mughal-era gardens", description: "Beautifully restored heritage park with Mughal-era monuments.", hours: "7:00 AM - 7:00 PM", safety: ["Family Friendly", "Solo Friendly"], coordinates: [28.5937, 77.2431] }
+            ];
+            let map;
+            let markers = [];
+            let userLocation = null;
+            let savedPlaces = new Set();
+            let userMarker = null;
+            let exploreInitialized = false;
+
+            function initExploreApp() {
+                if (exploreInitialized) {
+                    setTimeout(() => { if(map) map.invalidateSize() }, 10);
+                    return;
+                };
+                initMap();
+                renderPlaces('all');
+                setupExploreEventListeners();
+                exploreInitialized = true;
+            }
+
+            function initMap() {
+                if (document.getElementById('map') && !map) {
+                    map = L.map('map').setView([28.6139, 77.2090], 12);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
+                    updateMapMarkers('all');
+                }
+            }
+
+            function updateMapMarkers(category) {
+                if(!map) return;
+                markers.forEach(marker => map.removeLayer(marker));
+                markers = [];
+                let filteredPlaces = places.filter(place => category === 'all' || place.category === category);
+                filteredPlaces.forEach(place => {
+                    const marker = L.marker(place.coordinates).addTo(map)
+                        .bindPopup(`<div class='popup-title'>${place.name}</div><div class='popup-desc'>${place.description}</div><div class='popup-time'>Rating: ${generateStars(place.rating)}</div>`);
+                    markers.push(marker);
+                });
+            }
+            
+            function generateStars(rating) {
+                let stars = '';
+                for (let i = 1; i <= 5; i++) { stars += i <= rating ? '<i class="fas fa-star"></i>' : '<i class="far fa-star"></i>'; }
+                return `<span class="text-yellow-400 text-xs">${stars}</span>`;
+            }
+
+            function getLocation() {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        position => {
+                            userLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
+                            map.setView([userLocation.lat, userLocation.lng], 14);
+                            if (userMarker) map.removeLayer(userMarker);
+                            userMarker = L.marker([userLocation.lat, userLocation.lng]).addTo(map).bindPopup("You are here!").openPopup();
+                            L.circle([userLocation.lat, userLocation.lng], { color: 'blue', fillColor: '#3388ff', fillOpacity: 0.2, radius: 100 }).addTo(map);
+                            updateDistances();
+                            const currentCategory = document.querySelector('.category-filter.active').getAttribute('data-category');
+                            renderPlaces(currentCategory);
+                            showNotification('Location found! Showing nearby places.', 'success');
+                        },
+                        error => {
+                            showNotification('Unable to get your location. Please enable permissions.', 'error');
+                        }
+                    );
+                } else {
+                    showNotification('Geolocation is not supported by this browser.', 'error');
+                }
+            }
+
+            function updateDistances() {
+                if (!userLocation) return;
+                places.forEach(place => {
+                    const distance = calculateDistance(userLocation.lat, userLocation.lng, place.coordinates[0], place.coordinates[1]);
+                    place.distance = `${distance.toFixed(1)}km`;
+                });
+            }
+
+            function calculateDistance(lat1, lon1, lat2, lon2) {
+                const R = 6371; const dLat = deg2rad(lat2 - lat1); const dLon = deg2rad(lon2 - lon1);
+                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                return R * c;
+            }
+            function deg2rad(deg) { return deg * (Math.PI / 180); }
+
+            function renderPlaces(category) {
+                const grid = document.getElementById('places-grid');
+                if(!grid) return;
+                grid.innerHTML = '';
+                let filteredPlaces = places.filter(place => category === 'all' || place.category === category);
+                if (userLocation) {
+                    filteredPlaces.sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance));
+                }
+                filteredPlaces.forEach(place => {
+                    const card = createPlaceCard(place);
+                    grid.appendChild(card);
+                });
+            }
+
+            function createPlaceCard(place) {
+                const card = document.createElement('div');
+                card.className = 'place-card bg-white rounded-xl shadow-md overflow-hidden';
+                card.innerHTML = `<div class="relative"><img src="${place.image}" alt="${place.alt}" class="w-full h-48 object-cover"><div class="absolute top-4 right-4 bg-white px-3 py-1 rounded-full shadow-sm"><span class="text-sm font-semibold">${place.distance}</span></div></div><div class="p-4"><div class="flex justify-between items-start mb-2"><h4 class="font-semibold text-gray-800">${place.name}</h4><span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full">${place.category.charAt(0).toUpperCase() + place.category.slice(1)}</span></div><p class="text-gray-600 text-sm mb-3">${place.description}</p><div class="flex items-center text-sm">${generateStars(place.rating)}<span class="text-gray-500 ml-2">(${place.reviews})</span></div></div>`;
+                return card;
+            }
+
+            function setupExploreEventListeners() {
+                document.querySelectorAll('.category-filter').forEach(button => {
+                    button.addEventListener('click', function() {
+                        document.querySelectorAll('.category-filter').forEach(btn => btn.classList.remove('active'));
+                        this.classList.add('active');
+                        const category = this.getAttribute('data-category');
+                        renderPlaces(category);
+                        updateMapMarkers(category);
+                    });
+                });
+            }
+            function handleContribution(event) {
+                event.preventDefault();
+                showNotification('Thank you! Your contribution will be reviewed.', 'success');
+                event.target.reset();
+            }
+
+            function showNotification(message, type = 'success') {
+                const notification = document.getElementById('notification');
+                notification.textContent = message;
+                notification.className = `notification ${type} show`;
+                setTimeout(() => { notification.classList.remove('show'); }, 3000);
+            }
+            // --- END OF EXPLORE NEARBY SCRIPT ---
+
+
+            document.addEventListener('DOMContentLoaded', () => {
+                let currentUser = {};
+                let currentImageUrl = '';
+                let tripCounter = 0;
+                const authPage = document.getElementById('page-auth');
+                const mainApp = document.getElementById('main-app-content');
+                const loginFormContainer = document.getElementById('login-form-container');
+                const signupFormContainer = document.getElementById('signup-form-container');
+                const showSignupLink = document.getElementById('show-signup-link');
+                const showLoginLink = document.getElementById('show-login-link');
+                const pages = document.querySelectorAll('.page');
+                const bottomNavItems = document.querySelectorAll('.bottom-nav-item');
+
+                const navMapping = {
+                    'nav-dashboard': 'page-dashboard',
+                    'nav-buddies': 'page-buddies',
+                    'nav-planner': 'page-planner',
+                    'nav-explore': 'page-explore',
+                    'nav-profile': 'page-profile',
+                };
+                
+                const navElements = {
+                    'dashboard-messages-btn': 'page-messages',
+                    'dashboard-plan-card': 'page-planner',
+                    'dashboard-buddy-card': 'page-buddies',
+                    'dashboard-explore-card': 'page-explore',
+                }
+
+                function showPage(pageId) {
+                    pages.forEach(page => page.classList.remove('active'));
+                    const targetPage = document.getElementById(pageId);
+                    if (targetPage) {
+                        targetPage.classList.add('active');
+                    }
+                    
+                    bottomNavItems.forEach(item => {
+                        if (navMapping[item.id] === pageId) {
+                            item.classList.add('active');
+                        } else {
+                            item.classList.remove('active');
+                        }
+                    });
+
+                    if (pageId === 'page-messages') {
+                        renderConversationsList();
+                        if(window.innerWidth >= 768) {
+                            loadConversation('Sarah');
+                        }
+                    }
+                    if(pageId === 'page-explore') {
+                        initExploreApp();
+                    }
+                }
+                
+                // --- App Initialization ---
+                Object.keys(navMapping).forEach(navId => {
+                    document.getElementById(navId).addEventListener('click', (e) => {
+                        e.preventDefault();
+                        showPage(navMapping[navId]);
+                    });
+                });
+                Object.keys(navElements).forEach(navId => {
+                    document.getElementById(navId).addEventListener('click', (e) => {
+                        e.preventDefault();
+                        showPage(navElements[navId]);
+                    });
+                });
+
+
+                // --- Authentication Toggle & Logic ---
+                showSignupLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    loginFormContainer.classList.add('hidden');
+                    signupFormContainer.classList.remove('hidden');
+                });
+
+                showLoginLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    signupFormContainer.classList.add('hidden');
+                    loginFormContainer.classList.remove('hidden');
+                });
+                
+                function capitalize(str) {
+                    if (!str) return '';
+                    return str.charAt(0).toUpperCase() + str.slice(1);
+                }
+
+                document.getElementById('login-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const email = document.getElementById('email').value;
+                    const signupName = document.getElementById('signup-name').value;
+                    
+                    const name = signupName.trim() ? signupName : email.split('@')[0];
+
+                    currentUser = {
+                        name: capitalize(name),
+                        bio: "Travel enthusiast and foodie exploring the world one city at a time. I believe the best way to experience a new place is through its culture, food, and people. Looking for buddies for my next adventure!",
+                        travelStyles: ["Adventurous", "Foodie", "Cultural", "Budget Traveler"],
+                        reviews: [],
+                        trips: []
+                    };
+                    addDefaultReview(); // Add default review for demonstration
+                    updateProfileDisplay();
+                    authPage.classList.remove('active');
+                    mainApp.classList.remove('hidden');
+                    showPage('page-dashboard');
+                });
+                
+                document.getElementById('signup-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    showNotification('Account created successfully! Please log in.', 'success');
+                    document.getElementById('email').value = document.getElementById('signup-email').value;
+                    showLoginLink.click();
+                });
+
+                // --- Logout ---
+                document.getElementById('logout-link').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    currentUser = {};
+                    
+                    const tripsGrid = document.getElementById('my-trips-grid');
+                    tripsGrid.innerHTML = `<div class="flex-shrink-0 w-64 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-center p-6 bg-gray-50 hover:bg-gray-100 transition-colors duration-300 cursor-pointer" onclick="document.getElementById('nav-planner').click()"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400 mb-4"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><h3 class="font-semibold text-gray-700">Plan a New Trip</h3></div>`;
+
+                    document.getElementById('login-form').reset();
+                    document.getElementById('signup-form').reset();
+
+                    mainApp.classList.add('hidden');
+                    authPage.classList.add('active');
+                    showPage('page-auth');
+                    showNotification("You've been logged out.", "success");
+                });
+
+                // --- AI Itinerary Planner ---
+                const plannerForm = document.getElementById('planner-form');
+                const plannerLoading = document.getElementById('planner-loading');
+                const plannerResults = document.getElementById('planner-results');
+                const itineraryContent = document.getElementById('itinerary-content');
+                const saveItineraryBtn = document.getElementById('save-itinerary-btn');
+                const regenerateBtn = document.getElementById('regenerate-itinerary-btn');
+                const itineraryHeader = document.getElementById('itinerary-header');
+
+                document.querySelectorAll('.interest-btn').forEach(btn => {
+                    btn.addEventListener('click', () => btn.classList.toggle('active'));
+                });
+                
+                plannerForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    plannerForm.classList.add('hidden');
+                    plannerLoading.classList.remove('hidden');
+                    plannerResults.classList.add('hidden');
+                    
+                    try {
+                        const responseText = await generateItinerary();
+                        const keywordMatch = responseText.match(/<!-- Image Keyword: (.*) -->/);
+                        const keyword = keywordMatch ? keywordMatch[1] : 'travel';
+                        const htmlContent = responseText.replace(/<!-- Image Keyword: .* -->/, '').trim();
+
+                        currentImageUrl = `https://source.unsplash.com/1600x900/?${encodeURIComponent(keyword)}`;
+                        itineraryHeader.style.backgroundImage = `url('${currentImageUrl}')`;
+                        
+                        itineraryContent.innerHTML = htmlContent;
+                        plannerLoading.classList.add('hidden');
+                        plannerResults.classList.remove('hidden');
+                    } catch (error) {
+                        console.error("Error generating itinerary:", error);
+                        itineraryContent.innerHTML = `<p class="text-center text-red-500">Sorry, something went wrong. Please try again.</p>`;
+                        plannerLoading.classList.add('hidden');
+                        plannerResults.classList.remove('hidden');
+                    }
+                });
+
+                regenerateBtn.addEventListener('click', () => {
+                    plannerResults.classList.add('hidden');
+                    plannerForm.classList.remove('hidden');
+                    itineraryContent.innerHTML = '';
+                });
+
+                saveItineraryBtn.addEventListener('click', () => {
+                    const destination = document.getElementById('destination').value;
+                    const tripData = { 
+                        destination, 
+                        imageUrl: currentImageUrl,
+                        itineraryHTML: itineraryContent.innerHTML,
+                        expenses: [],
+                        budget: 50000, // Default budget
+                    };
+                    addTripToDashboard(tripData);
+                    showNotification(`${destination} trip saved!`, 'success');
+                    showPage('page-dashboard');
+                    regenerateBtn.click();
+                });
+
+                async function generateItinerary() {
+                    const destination = document.getElementById('destination').value;
+                    const duration = document.getElementById('duration').value;
+                    const budgetEl = document.getElementById('budget');
+                    const budgetMap = { '1': 'Budget', '2': 'Moderate', '3': 'Luxury' };
+                    const budget = budgetMap[budgetEl.value];
+                    const activeInterests = [...document.querySelectorAll('.interest-btn.active')].map(btn => btn.dataset.interest);
+                    const interests = activeInterests.length > 0 ? activeInterests.join(', ') : 'general sightseeing';
+                    
+                    const apiKey = "AIzaSyBfpFjr-VdDPe60oP0NwZGcKGaLCC2t6iw"; 
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                    const systemPrompt = "You are a world-class travel planner. Generate a concise, exciting, day-by-day travel itinerary. Format the response as simple HTML. Use an `<h3>` for the main title. For each day, use an `<h4>`. For each activity, create a `<li>` with class 'timeline-item' containing a `<div>` with class 'timeline-icon' and an appropriate Font Awesome icon class (e.g., 'fas fa-utensils'), a `<p>` with class 'timeline-time' for the time (e.g., 'Morning', '2:00 PM'), and another `<p>` with class 'timeline-desc' for the activity description. Wrap the days in a `<ul>`. At the very end, on a new line, add a comment like <!-- Image Keyword: [A single, simple, descriptive keyword for the destination, like 'Kyoto temples'] -->.";
+                    const userQuery = `Create a ${duration}-day itinerary for a trip to ${destination}. The traveler has a ${budget} budget and is interested in ${interests}.`;
+
+                    const payload = {
+                        contents: [{ parts: [{ text: userQuery }] }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] },
+                    };
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API call failed with status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    return result.candidates?.[0]?.content?.parts?.[0]?.text || '<p>No content generated.</p>';
+                }
+
+                // --- Dynamic "My Trips" ---
+                function addTripToDashboard(trip) {
+                    tripCounter++;
+                    const tripId = `trip-${tripCounter}`;
+                    trip.id = tripId;
+                    currentUser.trips.push(trip);
+
+                    const tripsGrid = document.getElementById('my-trips-grid');
+                    const newTripCard = document.createElement('div');
+                    newTripCard.id = tripId;
+                    newTripCard.className = "trip-card bg-white rounded-lg shadow-lg overflow-hidden flex-shrink-0 w-64";
+                    
+                    const imageUrl = trip.imageUrl || 'https://images.unsplash.com/photo-1473625247510-8ceb1760943f?q=80&w=2011&auto=format&fit=crop';
+
+                    newTripCard.innerHTML = `
+                        <img src="${imageUrl}" alt="Trip to ${trip.destination}" class="w-full h-32 object-cover">
+                        <div class="p-4">
+                            <h3 class="text-lg font-bold mb-1">${trip.destination}</h3>
+                            <div class="flex gap-2 mt-4">
+                                <button class="view-trip-btn w-full text-sm bg-indigo-100 text-indigo-800 font-semibold py-2 rounded-lg hover:bg-indigo-200" data-trip-id="${tripId}">View Plan</button>
+                                <button class="complete-trip-btn w-full text-sm bg-green-100 text-green-800 font-semibold py-2 rounded-lg hover:bg-green-200" data-trip-id="${tripId}" data-destination="${trip.destination}">Complete</button>
+                            </div>
+                        </div>`;
+                    tripsGrid.prepend(newTripCard);
+                }
+                
+                // --- Buddy Filtering ---
+                const buddyDestInput = document.getElementById('buddy-dest');
+                const buddyInterestSelect = document.getElementById('buddy-interest');
+                if(buddyDestInput) {
+                    buddyDestInput.addEventListener('input', filterBuddies);
+                    buddyInterestSelect.addEventListener('change', filterBuddies);
+                }
+                
+                function filterBuddies() {
+                    const destinationQuery = buddyDestInput.value.toLowerCase();
+                    const interestQuery = buddyInterestSelect.value;
+                    const buddyCards = document.querySelectorAll('.buddy-card');
+
+                    buddyCards.forEach(card => {
+                        const cardDest = card.dataset.destination.toLowerCase();
+                        const cardInterests = card.dataset.interests;
+                        
+                        const destMatch = cardDest.includes(destinationQuery) || destinationQuery === '';
+                        const interestMatch = cardInterests.includes(interestQuery) || interestQuery === 'any';
+                        
+                        if (destMatch && interestMatch) {
+                            card.style.display = 'flex';
+                        } else {
+                            card.style.display = 'none';
+                        }
+                    });
+                }
+
+                // --- Profile Page Logic ---
+                const profileModal = document.getElementById('edit-profile-modal');
+                const editProfileBtn = document.getElementById('edit-profile-btn');
+                const closeProfileModalBtn = document.getElementById('close-profile-modal-btn');
+                const cancelProfileEditBtn = document.getElementById('cancel-profile-edit-btn');
+                const profileEditForm = document.getElementById('profile-edit-form');
+                const profilePicUpload = document.getElementById('profile-pic-upload');
+
+                function openProfileModal() {
+                    document.getElementById('modal-profile-name').value = currentUser.name;
+                    document.getElementById('modal-profile-bio').value = currentUser.bio;
+                    populateTravelStyleModal();
+                    profileModal.classList.remove('hidden');
+                    setTimeout(() => profileModal.classList.remove('opacity-0'), 10);
+                }
+                
+                function closeProfileModal() {
+                    profileModal.classList.add('opacity-0');
+                    setTimeout(() => profileModal.classList.add('hidden'), 250);
+                }
+
+                editProfileBtn.addEventListener('click', openProfileModal);
+                closeProfileModalBtn.addEventListener('click', closeProfileModal);
+                cancelProfileEditBtn.addEventListener('click', closeProfileModal);
+                
+                profilePicUpload.addEventListener('change', (e) => {
+                    if(e.target.files && e.target.files[0]) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            document.getElementById('profile-picture').src = event.target.result;
+                        }
+                        reader.readAsDataURL(e.target.files[0]);
+                    }
+                });
+
+                const allTravelStyles = ["Adventurous", "Foodie", "Cultural", "Budget Traveler", "Luxury", "Relaxation", "Nightlife", "History Buff"];
+                const travelStyleColors = {
+                    "Adventurous": "bg-teal-100 text-teal-800", "Foodie": "bg-amber-100 text-amber-800", "Cultural": "bg-sky-100 text-sky-800",
+                    "Budget Traveler": "bg-rose-100 text-rose-800", "Luxury": "bg-purple-100 text-purple-800", "Relaxation": "bg-green-100 text-green-800",
+                    "Nightlife": "bg-indigo-100 text-indigo-800", "History Buff": "bg-yellow-100 text-yellow-800"
+                };
+
+                function populateTravelStyleModal() {
+                    const container = document.getElementById('modal-travel-styles');
+                    container.innerHTML = '';
+                    allTravelStyles.forEach(style => {
+                        const isSelected = currentUser.travelStyles.includes(style);
+                        const tag = document.createElement('button');
+                        tag.type = 'button';
+                        tag.textContent = style;
+                        tag.dataset.style = style;
+                        tag.className = `travel-style-tag px-3 py-1.5 border rounded-full text-sm font-medium ${isSelected ? 'selected' : 'bg-gray-100 text-gray-700 border-gray-300'}`;
+                        tag.addEventListener('click', () => {
+                            tag.classList.toggle('selected');
+                            tag.classList.toggle('bg-gray-100');
+                            tag.classList.toggle('text-gray-700');
+                            tag.classList.toggle('border-gray-300');
+                        });
+                        container.appendChild(tag);
+                    });
+                }
+
+                profileEditForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    currentUser.name = document.getElementById('modal-profile-name').value;
+                    currentUser.bio = document.getElementById('modal-profile-bio').value;
+
+                    const selectedStyles = [];
+                    document.querySelectorAll('#modal-travel-styles .travel-style-tag.selected').forEach(tag => {
+                        selectedStyles.push(tag.dataset.style);
+                    });
+                    currentUser.travelStyles = selectedStyles;
+
+                    updateProfileDisplay();
+                    closeProfileModal();
+                    showNotification('Profile updated successfully!', 'success');
+                });
+
+                function updateProfileDisplay() {
+                    document.getElementById('welcome-message').textContent = `Welcome, ${currentUser.name}!`;
+                    document.getElementById('dashboard-avatar').textContent = currentUser.name.charAt(0);
+                    document.getElementById('profile-name').textContent = currentUser.name;
+                    document.getElementById('profile-bio-text').textContent = currentUser.bio;
+                    document.getElementById('profile-picture').src = `https://placehold.co/160x160/667eea/ffffff?text=${currentUser.name.charAt(0)}`;
+                    document.getElementById('profile-picture').alt = currentUser.name;
+
+                    const stylesContainer = document.getElementById('profile-travel-styles');
+                    stylesContainer.innerHTML = '';
+                    if(currentUser.travelStyles) {
+                        currentUser.travelStyles.forEach(style => {
+                            const tag = document.createElement('span');
+                            tag.textContent = style;
+                            const colors = travelStyleColors[style] || 'bg-gray-100 text-gray-800';
+                            tag.className = `${colors} text-sm font-medium px-3 py-1.5 rounded-full`;
+                            stylesContainer.appendChild(tag);
+                        });
+                    }
+                    renderReviews();
+                }
+
+                // --- Messages Feature ---
+                const conversationData = {
+                    'Sarah': {
+                        pic: 'https://placehold.co/100x100/9f7aea/ffffff?text=S',
+                        messages: [
+                            { sender: 'Sarah', text: 'Hey! Are you excited for our Paris trip?' },
+                            { sender: 'You', text: 'Absolutely! I was just looking at some cafes in Le Marais.' },
+                            { sender: 'Sarah', text: 'Oh nice! We should definitely check them out.' }
+                        ]
+                    },
+                    'Mike': {
+                        pic: 'https://placehold.co/100x100/4299e1/ffffff?text=M',
+                        messages: [
+                            { sender: 'Mike', text: 'Have you booked your flight to Bali yet?' },
+                        ]
+                    },
+                    'Laura': {
+                        pic: 'https://placehold.co/100x100/ed8936/ffffff?text=L',
+                        messages: [
+                            { sender: 'Laura', text: 'I found a great resort in the Maldives. Thoughts?' },
+                            { sender: 'You', text: 'Sounds amazing! Send me the link.' },
+                        ]
+                    }
+                };
+                
+                function renderConversationsList() {
+                    const listEl = document.getElementById('conversations-list');
+                    listEl.innerHTML = '';
+                    Object.keys(conversationData).forEach(name => {
+                        const data = conversationData[name];
+                        const lastMessage = data.messages[data.messages.length - 1];
+                        const item = document.createElement('a');
+                        item.href = '#';
+                        item.className = 'conversation-item flex items-center p-4 hover:bg-gray-100 transition-colors duration-200';
+                        item.dataset.buddy = name;
+                        item.innerHTML = `
+                            <img src="${data.pic}" alt="${name}" class="w-12 h-12 rounded-full mr-4">
+                            <div class="flex-grow overflow-hidden">
+                                <p class="font-semibold text-gray-800">${name}</p>
+                                <p class="text-sm text-gray-500 truncate">${lastMessage.sender === 'You' ? 'You: ' : ''}${lastMessage.text}</p>
+                            </div>
+                        `;
+                        listEl.appendChild(item);
+                    });
+                    if (listEl.querySelector('.conversation-item')) {
+                    listEl.querySelector('.conversation-item').classList.add('active');
+                    }
+
+                    listEl.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const target = e.target.closest('.conversation-item');
+                        if (target) {
+                            document.querySelectorAll('.conversation-item').forEach(item => item.classList.remove('active'));
+                            target.classList.add('active');
+                            loadConversation(target.dataset.buddy);
+                            if(window.innerWidth < 768) { // On mobile, show chat window as an overlay or new view
+                            document.getElementById('conversations-list').classList.add('hidden');
+                            document.getElementById('chat-window').classList.remove('hidden');
+                            document.getElementById('chat-window').classList.add('w-full');
+                            }
+                        }
+                    });
+                }
+
+                function loadConversation(buddyName) {
+                    const data = conversationData[buddyName];
+                    const chatWindow = document.getElementById('chat-window');
+                    chatWindow.innerHTML = `
+                        <div class="p-4 border-b border-gray-200 flex items-center">
+                            <button class="md:hidden mr-4 text-gray-600" id="back-to-conversations"><i class="fas fa-arrow-left"></i></button>
+                            <img src="${data.pic}" alt="${buddyName}" class="w-10 h-10 rounded-full mr-3">
+                            <h3 class="text-lg font-semibold text-gray-800">${buddyName}</h3>
+                        </div>
+                        <div id="chat-messages" class="flex-grow p-6 overflow-y-auto space-y-4">
+                            ${data.messages.map(msg => `
+                                <div class="flex ${msg.sender === 'You' ? 'justify-end' : 'justify-start'}">
+                                    <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${msg.sender === 'You' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-800'}">
+                                        <p>${msg.text}</p>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="p-4 bg-gray-100 border-t border-gray-200">
+                            <form id="message-form" class="flex items-center space-x-3">
+                                <input type="text" id="message-input" placeholder="Type a message..." class="w-full p-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500" autocomplete="off">
+                                <button type="submit" class="bg-indigo-600 text-white rounded-full w-12 h-12 flex items-center justify-center flex-shrink-0 hover:bg-indigo-700">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </form>
+                        </div>`;
+
+                    const chatMessages = document.getElementById('chat-messages');
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                    const backBtn = document.getElementById('back-to-conversations');
+                    if(backBtn) {
+                        backBtn.addEventListener('click', () => {
+                            document.getElementById('conversations-list').classList.remove('hidden');
+                            document.getElementById('chat-window').classList.add('hidden');
+                            document.getElementById('chat-window').classList.remove('w-full');
+                        });
+                    }
+
+
+                    document.getElementById('message-form').addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        const input = document.getElementById('message-input');
+                        const text = input.value.trim();
+                        if (text) {
+                            const newMessage = { sender: 'You', text };
+                            data.messages.push(newMessage);
+                            
+                            const msgBubble = document.createElement('div');
+                            msgBubble.className = 'flex justify-end';
+                            msgBubble.innerHTML = `<div class="max-w-xs lg:max-w-md px-4 py-2 rounded-2xl bg-indigo-600 text-white"><p>${text}</p></div>`;
+                            chatMessages.appendChild(msgBubble);
+                            chatMessages.scrollTop = chatMessages.scrollHeight;
+                            
+                            input.value = '';
+                            renderConversationsList();
+                            document.querySelector(`.conversation-item[data-buddy="${buddyName}"]`).classList.add('active');
+
+
+                            setTimeout(() => {
+                                const reply = { sender: buddyName, text: 'Sounds good!' };
+                                data.messages.push(reply);
+                                const replyBubble = document.createElement('div');
+                                replyBubble.className = 'flex justify-start';
+                                replyBubble.innerHTML = `<div class="max-w-xs lg:max-w-md px-4 py-2 rounded-2xl bg-gray-200 text-gray-800"><p>${reply.text}</p></div>`;
+                                chatMessages.appendChild(replyBubble);
+                                chatMessages.scrollTop = chatMessages.scrollHeight;
+                                renderConversationsList();
+                                document.querySelector(`.conversation-item[data-buddy="${buddyName}"]`).classList.add('active');
+                            }, 1500);
+                        }
+                    });
+                }
+
+                // --- Review & Rating Logic ---
+                const reviewModal = document.getElementById('review-modal');
+                const reviewForm = document.getElementById('review-form');
+                const tripsGrid = document.getElementById('my-trips-grid');
+                let currentTripToReview = null;
+
+                tripsGrid.addEventListener('click', (e) => {
+                    const completeButton = e.target.closest('.complete-trip-btn');
+                    const viewButton = e.target.closest('.view-trip-btn');
+                    
+                    if (completeButton) {
+                        currentTripToReview = {
+                            id: completeButton.dataset.tripId,
+                            destination: completeButton.dataset.destination
+                        };
+                        document.getElementById('review-destination').textContent = currentTripToReview.destination;
+                        openInfoModal(reviewModal);
+                    } else if (viewButton) {
+                        const tripId = viewButton.dataset.tripId;
+                        const tripData = currentUser.trips.find(t => t.id === tripId);
+                        if(tripData) {
+                            openViewTripModal(tripData);
+                        }
+                    }
+                });
+
+                document.getElementById('cancel-review-btn').addEventListener('click', () => {
+                    closeInfoModal(reviewModal);
+                });
+                
+                const reviewStars = document.getElementById('review-stars');
+                reviewStars.addEventListener('click', (e) => {
+                    if(e.target.tagName === 'I') {
+                        const rating = e.target.dataset.rating;
+                        document.getElementById('review-rating-value').value = rating;
+                        
+                        reviewStars.querySelectorAll('i').forEach(star => {
+                            star.classList.remove('active', 'text-yellow-400');
+                            star.classList.add('text-gray-300');
+                        });
+                        
+                        for(let i=1; i <= rating; i++) {
+                            reviewStars.querySelector(`[data-rating="${i}"]`).classList.add('active', 'text-yellow-400');
+                        }
+                    }
+                });
+
+                reviewForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const newReview = {
+                        from: "A Travel Buddy", // This would be dynamic in a real app
+                        pic: "https://placehold.co/40x40/fbbf24/ffffff?text=T",
+                        rating: document.getElementById('review-rating-value').value,
+                        text: document.getElementById('review-text').value
+                    };
+                    
+                    currentUser.reviews.unshift(newReview);
+                    updateProfileDisplay();
+
+                    document.getElementById(currentTripToReview.id)?.remove();
+                    
+                    closeInfoModal(reviewModal);
+                    reviewForm.reset();
+                    reviewStars.querySelectorAll('i').forEach(star => star.classList.remove('active', 'text-yellow-400'));
+                    
+                    showNotification('Review submitted!', 'success');
+                });
+                
+                function addDefaultReview() {
+                    if (!currentUser.reviews) currentUser.reviews = [];
+                    currentUser.reviews.push({
+                        from: 'Sarah',
+                        pic: 'https://placehold.co/40x40/9f7aea/ffffff?text=S',
+                        rating: 5,
+                        text: `"${currentUser.name} was an amazing travel buddy in Paris! So knowledgeable and fun."`
+                    });
+                }
+                
+                function renderReviews() {
+                    const reviewsList = document.getElementById('reviews-list');
+                    reviewsList.innerHTML = '';
+                    if(currentUser.reviews && currentUser.reviews.length > 0) {
+                        currentUser.reviews.forEach(review => {
+                            const reviewEl = document.createElement('div');
+                            reviewEl.className = 'bg-white p-4 rounded-2xl shadow-lg';
+                            reviewEl.innerHTML = `
+                                <div class="flex items-center mb-2">
+                                    <img src="${review.pic}" alt="${review.from}" class="w-10 h-10 rounded-full mr-3">
+                                    <div>
+                                        <p class="font-semibold">Review from ${review.from}</p>
+                                        ${generateStars(review.rating)}
+                                    </div>
+                                </div>
+                                <p class="text-gray-600 text-sm">${review.text}</p>`;
+                            reviewsList.appendChild(reviewEl);
+                        });
+                    } else {
+                        reviewsList.innerHTML = `<p class="text-gray-500 text-sm text-center">No reviews yet.</p>`;
+                    }
+                }
+
+
+                // --- Profile Info Modals ---
+                const aboutModal = document.getElementById('about-modal');
+                const contactModal = document.getElementById('contact-modal');
+                const helpModal = document.getElementById('help-modal');
+                const viewTripModal = document.getElementById('view-trip-modal');
+
+                document.getElementById('about-us-link').addEventListener('click', (e) => { e.preventDefault(); openInfoModal(aboutModal); });
+                document.getElementById('contact-support-link').addEventListener('click', (e) => { e.preventDefault(); openInfoModal(contactModal); });
+                document.getElementById('help-center-link').addEventListener('click', (e) => { e.preventDefault(); openInfoModal(helpModal); });
+
+                document.querySelectorAll('.close-info-modal-btn, #close-view-trip-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        closeInfoModal(btn.closest('.modal'));
+                    });
+                });
+
+                function openInfoModal(modal) {
+                    modal.classList.remove('hidden');
+                    setTimeout(() => modal.classList.remove('opacity-0'), 10);
+                }
+
+                function closeInfoModal(modal) {
+                    modal.classList.add('opacity-0');
+                    setTimeout(() => modal.classList.add('hidden'), 250);
+                }
+                
+                // --- View Trip Modal ---
+                function openViewTripModal(tripData) {
+                    document.getElementById('view-trip-title').textContent = `Trip to ${tripData.destination}`;
+                    document.getElementById('view-trip-header').style.backgroundImage = `url('${tripData.imageUrl}')`;
+                    document.getElementById('view-trip-itinerary').innerHTML = tripData.itineraryHTML;
+                    
+                    // Budget tracker logic
+                    const expenseForm = document.getElementById('expense-form');
+                    const expenseList = document.getElementById('expense-list');
+                    const budgetSpentEl = document.getElementById('budget-spent');
+                    const budgetTotalEl = document.getElementById('budget-total');
+                    const budgetProgress = document.getElementById('budget-progress');
+
+                    budgetTotalEl.textContent = `₹${tripData.budget}`;
+                    
+                    function updateBudget() {
+                        const totalSpent = tripData.expenses.reduce((sum, expense) => sum + expense.amount, 0);
+                        budgetSpentEl.textContent = `₹${totalSpent}`;
+                        const percentage = Math.min((totalSpent / tripData.budget) * 100, 100);
+                        budgetProgress.style.width = `${percentage}%`;
+                        budgetProgress.style.backgroundColor = percentage > 80 ? '#ef4444' : '#22c55e';
+                    }
+
+                    function renderExpenses() {
+                        expenseList.innerHTML = '';
+                        tripData.expenses.forEach(expense => {
+                            const li = document.createElement('li');
+                            li.className = 'flex justify-between items-center text-sm';
+                            li.innerHTML = `<span>${expense.desc}</span><span>₹${expense.amount}</span>`;
+                            expenseList.appendChild(li);
+                        });
+                    }
+                    
+                    const onExpenseSubmit = (e) => {
+                        e.preventDefault();
+                        const descInput = document.getElementById('expense-desc');
+                        const amountInput = document.getElementById('expense-amount');
+                        const amount = parseFloat(amountInput.value);
+
+                        if(descInput.value.trim() && amount > 0) {
+                            tripData.expenses.push({ desc: descInput.value, amount: amount });
+                            renderExpenses();
+                            updateBudget();
+                            descInput.value = '';
+                            amountInput.value = '';
+                        }
+                    };
+
+                    expenseForm.onsubmit = onExpenseSubmit;
+
+                    renderExpenses();
+                    updateBudget();
+                    openInfoModal(viewTripModal);
+                }
+                
+                // Initial Load
+                showPage('page-auth');
+            });
+        </script>
+    </body>
+    </html>
+
+
+    

@@ -1,0 +1,101 @@
+:root {
+    --primary-color: #4f46e5;
+    --secondary-color: #10b981;
+}
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f8fafc; /* Tailwind's gray-50 */
+}
+.auth-bg {
+    background-image: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2070&auto=format&fit=crop');
+    background-size: cover;
+    background-position: center;
+}
+.page { display: none; }
+.page.active { display: block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+    border: 4px solid rgba(0, 0, 0, .1);
+    border-left-color: var(--primary-color);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+}
+.modal {
+    transition: opacity 0.25s ease;
+}
+/* Explore Nearby Styles */
+.place-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.place-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+.category-filter {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+.category-filter.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+.rating-stars { color: #fbbf24; }
+#review-stars i:hover, #review-stars i.active { color: #fbbf24; }
+.safety-tag { background: #10b981; color: white; }
+#map { height: 300px; border-radius: 12px; z-index: 10; }
+.notification {
+    position: fixed; top: 20px; right: 20px; padding: 15px 20px;
+    border-radius: 8px; color: white; z-index: 1050;
+    transform: translateX(120%); transition: transform 0.3s ease-in-out;
+}
+.notification.show { transform: translateX(0); }
+.notification.success { background: var(--secondary-color); }
+.notification.error { background: #ef4444; }
+.leaflet-popup-content { margin: 13px 19px; font-family: 'Inter', sans-serif; }
+.popup-title { font-weight: bold; font-size: 16px; margin-bottom: 4px; color: #333; }
+.popup-desc { font-size: 14px; margin-bottom: 4px; color: #666; }
+.popup-time { font-size: 12px; color: gray; }
+.interest-btn.active {
+    background-color: var(--primary-color);
+    color: white;
+}
+/* Itinerary Timeline Styles */
+.itinerary-content h3 { font-size: 1.5rem; font-weight: 800; text-align: center; margin-bottom: 1.5rem; color: #1f2937; }
+.itinerary-content h4 { font-size: 1.25rem; font-weight: 700; margin-top: 2rem; margin-bottom: 1.5rem; color: #374151; padding-bottom: 0.5rem; border-bottom: 2px solid #e5e7eb; }
+.itinerary-content ul { list-style: none; padding: 0; }
+.timeline-item { position: relative; padding: 0 0 2.5rem 2.5rem; border-left: 2px solid #d1d5db; }
+.timeline-item:last-child { border-left: 2px solid transparent; }
+.timeline-icon { position: absolute; left: -0.8rem; top: 0.25rem; background: white; border-radius: 9999px; width: 1.5rem; height: 1.5rem; display: flex; align-items: center; justify-content: center; border: 2px solid var(--primary-color); }
+.timeline-icon i { color: var(--primary-color); font-size: 0.8rem; }
+.timeline-time { font-weight: 600; color: #4b5563; margin-bottom: 0.25rem; }
+.timeline-desc { color: #6b7280; }
+.travel-style-tag {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.travel-style-tag.selected {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+/* Messages Styles */
+#chat-container {
+    height: calc(100vh - 5rem); /* Full height minus top bar */
+}
+.conversation-item.active {
+    background-color: #eef2ff; /* indigo-100 */
+}
+/* App Layout Styles */
+.bottom-nav-item.active {
+    color: var(--primary-color);
+}
+.horizontal-scroll {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+}
+.horizontal-scroll::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+}
